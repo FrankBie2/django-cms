@@ -1234,8 +1234,32 @@ class PageAdmin(ModelAdmin):
             # in case of looking to history just render the plugin content
             context = RequestContext(request)
             return render_to_response(plugin_admin.render_template, plugin_admin.render(context, instance, plugin_admin.placeholder))
-
-
+        # FIX FOR CANCEL BUTTON
+        # https://github.com/andrewschoen/django-cms/blob/5a8ebd5fd96331118df0dea396adbd23e67fcd9f/cms/admin/pageadmin.py#L1249
+        if request.POST.get("_cancel", False):
+            # cancel buton was clicked
+            context = {
+                'CMS_MEDIA_URL': settings.CMS_MEDIA_URL,
+                'plugin': cms_plugin,
+                'is_popup': True,
+                'name': unicode(cms_plugin),
+                "type": cms_plugin.get_plugin_name(),
+                'plugin_id': plugin_id,
+                'icon': force_escape(escapejs(cms_plugin.get_instance_icon_src())),
+                'alt': force_escape(escapejs(cms_plugin.get_instance_icon_alt())),
+                'cancel': True,
+            }
+            #https://github.com/andrewschoen/django-cms/commit/cd97d9bd9c59d4b762894be8bf22c5e7a3b1b7ee
+            instance = cms_plugin.get_plugin_instance()[0]
+            if not instance:
+                # cancelled before any content was added to plugin
+                cms_plugin.delete()
+                context.update({
+                    "deleted":True,
+                })
+            return render_to_response('admin/cms/page/plugin_forms_ok.html', context, RequestContext(request))
+        
+        # fix end
         if not instance:
             # instance doesn't exist, call add view
             response = plugin_admin.add_view(request)
@@ -1268,8 +1292,12 @@ class PageAdmin(ModelAdmin):
                 'name': unicode(saved_object),
                 "type": saved_object.get_plugin_name(),
                 'plugin_id': plugin_id,
-                'icon': force_escape(escapejs(saved_object.get_instance_icon_src())),
-                'alt': force_escape(escapejs(saved_object.get_instance_icon_alt())),
+                'icon': force_escape(saved_object.get_instance_icon_src()),
+                'alt': force_escape(saved_object.get_instance_icon_alt()),
+                # fix double encoding
+                # https://github.com/hpoul/django-cms/commit/b1e1d981d16edc3f3dfaaa5123bbfbfb78e9e029
+                #'icon': force_escape(escapejs(saved_object.get_instance_icon_src())),
+                #'alt': force_escape(escapejs(saved_object.get_instance_icon_alt())),
             }
             return render_to_response('admin/cms/page/plugin_forms_ok.html', context, RequestContext(request))
 

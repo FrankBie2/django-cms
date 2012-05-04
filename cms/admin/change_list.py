@@ -195,6 +195,8 @@ class CMSChangeList(ChangeList):
                 if len(children):
                     # TODO: WTF!?!
                     # The last one is not the last... wait, what?
+                    # children should NOT be a queryset. If it is, check that
+                    # your django-mptt version is 0.5.1
                     children[-1].last = False
                 page.menu_level = 0
                 root_pages.append(page)
@@ -219,7 +221,7 @@ class CMSChangeList(ChangeList):
                 page.childrens = children
         
         # TODO: OPTIMIZE!!
-        titles = Title.objects.filter(page__in=ids)
+        titles = Title.objects.filter(page__in=ids).order_by('page__tree_id', 'page__lft', 'page','language')
         for page in all_pages:# add the title and slugs and some meta data
             page.title_cache = {}
             page.all_languages = []
@@ -228,7 +230,6 @@ class CMSChangeList(ChangeList):
                     page.title_cache[title.language] = title
                     if not title.language in page.all_languages:
                         page.all_languages.append(title.language)
-            page.all_languages.sort()
         self.root_pages = root_pages
         
     def get_items(self):
