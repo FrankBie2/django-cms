@@ -3,9 +3,11 @@ from cms.utils.django_load import load
 from django.conf import settings
 from django.contrib.sites.models import Site
 from django.core.cache import cache
+from django.core.exceptions import MultipleObjectsReturned
 from django.utils.translation import get_language
 from menus.exceptions import NamespaceAllreadyRegistered
 from menus.models import CacheKey
+
 import copy
 
 def _build_nodes_inner_for_one_menu(nodes, menu_class_name):
@@ -140,7 +142,19 @@ class MenuPool(object):
         # the database. It's still cheaper than recomputing every time!
         # This way we can selectively invalidate per-site and per-language, 
         # since the cache shared but the keys aren't 
-        CacheKey.objects.create(key=key, language=lang, site=site_id)
+        try:
+            # @FIXME: BADDD
+            # for some reason multiple objects could get returned
+            # happens in rare race conditions
+            # as this is only a cache key remove all - 1
+            # testcase could not reproduce it, but happens in production randomly
+            
+            CacheKey.objects.get_or_create(key=key, language=lang, site=site_id)
+        except MultipleObjectsReturned, e:
+            keys = CacheKey.objects.filter(key=key, language=lang, site=site_id)
+            for key in keys:
+                key.delete()
+            CacheKey.objects.get_or_create(key=key, language=lang, site=site_id)
         return final_nodes
 
     def apply_modifiers(self, nodes, request, namespace=None, root_id=None, post_cut=False, breadcrumb=False):

@@ -204,6 +204,7 @@ class PageAdmin(ModelAdmin):
             pat(r'^([0-9]+)/remove-delete-state/$', self.remove_delete_state),
             pat(r'^([0-9]+)/dialog/copy/$', get_copy_dialog), # copy dialog
             pat(r'^([0-9]+)/preview/$', self.preview_page), # copy dialog
+            pat(r'^([0-9]+)/descendants/$', self.descendants), # lazy load navigation
             pat(r'^(?P<object_id>\d+)/change_template/$', self.change_template), # copy dialog
         )
 
@@ -667,6 +668,12 @@ class PageAdmin(ModelAdmin):
             languages = settings.CMS_SITE_LANGUAGES[site_id]
         else:
             languages = [x[0] for x in settings.CMS_LANGUAGES]
+        # parse the cookie that saves which page trees have
+        # been opened already and extracts the page ID
+        open_menu_trees = []
+        if request.COOKIES.get("djangocms_nodes_open", False):
+            open_menu_trees = [int(c.split("page_")[1]) for c in \
+                    request.COOKIES["djangocms_nodes_open"].split("%2C")]
         
         context = {
             'title': cl.title,
@@ -683,7 +690,8 @@ class PageAdmin(ModelAdmin):
             'has_recover_permission': 'reversion' in settings.INSTALLED_APPS and self.has_recover_permission(request),
             'DEBUG': settings.DEBUG,
             'site_languages': languages,
-        }
+            'open_menu_trees': open_menu_trees,
+       }
         if 'reversion' in settings.INSTALLED_APPS:
             context['has_change_permission'] = self.has_change_permission(request)
         context.update(extra_context or {})
@@ -1065,6 +1073,16 @@ class PageAdmin(ModelAdmin):
             return admin_utils.render_admin_menu_item(request, page)
         return HttpResponseForbidden(_("You do not have permission to change this page's in_navigation status"))
 
+    def descendants(self, request, page_id):
+        """
+        Lazy load navigation tree for given page
+        """
+        page = get_object_or_404(Page, pk=page_id)
+        return admin_utils.render_admin_menu_item(request, page,
+                template="admin/cms/page/lazy_menu.html")
+        
+        
+        
     @create_on_success
     def add_plugin(self, request):
         '''

@@ -36,7 +36,9 @@
 				theme_name: "default",
 				a_class: "title"
 			},
-			cookies : {},
+            cookies : {
+                prefix: "djangocms_nodes"
+            },
 			callback: {
 				beforemove  : function(what, where, position, tree) {
 					item_id = what.id.split("page_")[1];
@@ -269,7 +271,26 @@
 				e.stopPropagation();
 	            return false;
 	        }
-			
+
+            // lazy load descendants on tree open
+            if(jtarget.hasClass("closed")) {
+              // only load them once
+              if(jtarget.find('ul > li').length == 0 && !jtarget.hasClass("loading")) {
+                // keeps this event from firing multiple times before
+                // the dom as changed. it still needs to propagate for 
+                // the other click event on this element to fire
+                    jtarget.addClass("loading");
+                    var pageId = $(jtarget).attr("id").split("page_")[1];
+                    $.get(admin_base_url + "cms/page/" + pageId + "/descendants/", {}, function(r, status) {
+                        jtarget.children('ul').append(r);
+                        // show move targets if needed
+                        if($('span.move-target-container:visible').length > 0) {
+                          jtarget.children('ul').find('a.move-target, span.move-target-container, span.line').show();
+                        }
+                    });
+                }
+            }
+
 	        if(jtarget.hasClass("move-target")) {
 	            if(jtarget.hasClass("left")){
 	                position = "left";
